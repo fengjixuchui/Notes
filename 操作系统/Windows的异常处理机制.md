@@ -8,7 +8,14 @@
 - [4. 记录异常信息](#4-记录异常信息)
     - [4.1. 模拟异常的特殊填充](#41-模拟异常的特殊填充)
 - [5. 异常分发](#5-异常分发)
-    - [5.1. 内核异常](#51-内核异常)
+    - [5.1. KiDispatchException函数](#51-kidispatchexception函数)
+    - [5.2. ntdll!KiUserExceptionDispatcher](#52-ntdllkiuserexceptiondispatcher)
+- [6. 向量化异常处理：VEH](#6-向量化异常处理veh)
+- [7. SEH](#7-seh)
+- [8. _EXCEPTION_REGISTRATION_RECORD](#8-_exception_registration_record)
+    - [8.1. SEH拓展](#81-seh拓展)
+- [9. 异常处理函数](#9-异常处理函数)
+- [10. RtlDispatchException](#10-rtldispatchexception)
 
 <!-- /TOC -->
 # 1. 异常与调试
@@ -29,4 +36,27 @@ throw关键词和CxxThrowException为C语言的模拟异常特征，其它编程
 模拟异常在填充ExceptionRecord结构体的时候，ExceptionCode为一个固定值，该值依赖于编译环境；ExceptionAddress也是固定值，为RaiseException函数的地址。
 # 5. 异常分发
 所有类型的异常均通过KiDispatchException函数分发，所以这个函数是异常分发的关键。
-## 5.1. 内核异常
+## 5.1. KiDispatchException函数
+![KiDispatchException](../photo/操作系统_Windows的异常处理机制_KiDispatchException.jpg)
+RtlDispatchException为库函数，三环、内核均可调用。对于用户调用，如果异常未得到0环、3环调试器的处理，则需要由3环的异常处理函数来处理。设置了TrapFrame的返回地址等信息后，在函数返回之后，CPU异常在CommonDisPatchException中通过IRETD返回3环，模拟异常在KiRaiseException中通过系统调用返回3环，返回3环后，将会执行ntdll!KiUserExceptionDispatcher。
+## 5.2. ntdll!KiUserExceptionDispatcher
+这个函数会调用RtlDispatchException来寻找异常处理函数处理异常，如果处理成功则会调用ZwContinue（ZwContinue调用NtContinue，主要作用就是进入0环，恢复TrapFrame然后通过KiServiceExit返回到3环），如果处理失败则会调用ZwRaiseException来对异常进行二次分发。这里的RtlDispatchException与ntoskrnl.exe内核模块中的函数同名，但是功能略有不同。这个函数会先查找VEH链表（全局链表，线程无关），如果有则调用；如果没有或者未处理，则会查找当前线程的SEH链表（线程私有，位于堆栈的局部链表，结构化异常处理链表），如果有则调用。
+# 6. 向量化异常处理：VEH
+XP及之后的系统引入的机制
+# 7. SEH
+SEH链表和0环的异常链表结构相同，且均通过fs:[0]查找。0环kpcr、3环teb，第一个成员均为NtLib，而NtLib的第一个成员均为ExceptionList。SEH为Windows特有机制。
+# 8. _EXCEPTION_REGISTRATION_RECORD
+这个结构体是可以拓展的，他最少拥有两个成员，是Windows的异常处理机制的最基础成员，有的编译器会对这个结构体进行拓展。
+## 8.1. SEH拓展
+为了简便操作，编译器提供了try、except拓展，其中except的括号里面的内容可以是：
+* 值
+* 表达式
+* 函数调用
+但是他们最后的返回值必须是以下三个值：
+* 
+* 
+* 
+# 9. 异常处理函数
+如果异常处理函数成功处理异常，则返回EXCEPTION_CONTINUE_EXECUTION（-1），如果未能成功处理异常，则返回EXCEPTION_CONTINUE_SEARCH（0）。异常处理函数必须遵守一定的格式，其参数必须为4个（异常信息、异常处理结构体、异常发生时的上下文、DispatcherContext）。
+# 10. RtlDispatchException
+这个函数在查找到异常链表之后，会检查当前异常处理结构体是否位于堆栈之中。之后会调用RtlpExecuteHandlerForException来真正执行异常处理函数
