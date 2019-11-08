@@ -2,22 +2,21 @@
 
 - [1. 验证是否支持OpenVPN](#1-验证是否支持openvpn)
 - [2. 服务器端](#2-服务器端)
-    - [2.1. 创建CA、签发证书](#21-创建ca签发证书)
-        - [2.1.1. 安装easy-rsa并设置配置文件](#211-安装easy-rsa并设置配置文件)
-        - [2.1.2. 生成CA和服务器端证书](#212-生成ca和服务器端证书)
-        - [2.1.3. 生成测试客户端证书并签名](#213-生成测试客户端证书并签名)
-        - [2.1.4. 整理证书](#214-整理证书)
-            - [2.1.4.1. 服务器](#2141-服务器)
-            - [2.1.4.2. 测试客户端](#2142-测试客户端)
-    - [2.2. 安装openvpn并配置服务器](#22-安装openvpn并配置服务器)
-        - [2.2.1. 安装以及配置防火墙](#221-安装以及配置防火墙)
-        - [2.2.2. 开启内核转发](#222-开启内核转发)
-        - [2.2.3. 启动openvpn](#223-启动openvpn)
-        - [2.2.4. 固定客户端地址](#224-固定客户端地址)
+    - [2.1. 安装easy-rsa并设置配置文件](#21-安装easy-rsa并设置配置文件)
+    - [2.2. 生成CA和服务器端证书](#22-生成ca和服务器端证书)
+    - [2.3. 生成测试客户端证书](#23-生成测试客户端证书)
+    - [2.4. 整理证书](#24-整理证书)
+        - [2.4.1. 服务器](#241-服务器)
+        - [2.4.2. 测试客户端](#242-测试客户端)
+    - [2.5. 安装openvpn并配置服务器](#25-安装openvpn并配置服务器)
+    - [2.6. 安装以及配置防火墙](#26-安装以及配置防火墙)
+    - [2.7. 开启内核转发](#27-开启内核转发)
+    - [2.8. 启动openvpn并设置自启动](#28-启动openvpn并设置自启动)
+    - [2.9. 固定客户端地址（可选）](#29-固定客户端地址可选)
 - [3. 客户端连接](#3-客户端连接)
     - [3.1. windows](#31-windows)
     - [3.2. Linux](#32-linux)
-        - [3.2.1. 设置自启动](#321-设置自启动)
+        - [3.2.1. 设置自启动（进程终结自动连接VPN）](#321-设置自启动进程终结自动连接vpn)
 - [4. 后期维护](#4-后期维护)
 
 <!-- /TOC -->
@@ -28,8 +27,7 @@ cat /dev/net/tun
 # cat:/dev/net/tun:Permissiondenied（未开启tun/tap，不支持）
 ```
 # 2. 服务器端
-## 2.1. 创建CA、签发证书
-### 2.1.1. 安装easy-rsa并设置配置文件
+## 2.1. 安装easy-rsa并设置配置文件
 ```bash
 # 安装easy-rsa
 yum -y install easy-rsa
@@ -65,7 +63,7 @@ set_var EASYRSA_EXT_DIR "$EASYRSA/x509-types"
 set_var EASYRSA_SSL_CONF        "$EASYRSA/openssl-1.0.cnf"
 set_var EASYRSA_DIGEST          "sha256"
 ```
-### 2.1.2. 生成CA和服务器端证书
+## 2.2. 生成CA和服务器端证书
 ```bash
 # 切换目录
 cd /etc/openvpn/easyrsa_server
@@ -80,7 +78,7 @@ cd /etc/openvpn/easyrsa_server
 # 创建Diffie-Hellman，时间会有点长，耐心等待 
 ./easyrsa gen-dh 
 ```
-### 2.1.3. 生成测试客户端证书并签名
+## 2.3. 生成测试客户端证书
 ```bash
 # 切换目录
 cd /etc/openvpn/easyrsa_testclient
@@ -94,8 +92,8 @@ cd /etc/openvpn/easyrsa_server
 # 给client端证书做签名，首先是对一些信息的确认，可以输入yes，然后输入CA密码
 ./easyrsa sign client testclient
 ```
-### 2.1.4. 整理证书
-#### 2.1.4.1. 服务器
+## 2.4. 整理证书
+### 2.4.1. 服务器
 ```bash
 mkdir -p /etc/openvpn/server_keys
 cp /etc/openvpn/easyrsa_server/pki/ca.crt /etc/openvpn/server_keys/
@@ -103,14 +101,14 @@ cp /etc/openvpn/easyrsa_server/pki/private/vpnserver.key /etc/openvpn/server_key
 cp /etc/openvpn/easyrsa_server/pki/issued/vpnserver.crt /etc/openvpn/server_keys/
 cp /etc/openvpn/easyrsa_server/pki/dh.pem /etc/openvpn/server_keys/
 ```
-#### 2.1.4.2. 测试客户端
+### 2.4.2. 测试客户端
 ```bash
 mkdir /etc/openvpn/testclient_keys
 cp /etc/openvpn/easyrsa_server/pki/ca.crt /etc/openvpn/testclient_keys/
 cp /etc/openvpn/easyrsa_server/pki/issued/testclient.crt  /etc/openvpn/testclient_keys/
 cp /etc/openvpn/easyrsa_testclient/pki/private/testclient.key /etc/openvpn/testclient_keys/
 ```
-## 2.2. 安装openvpn并配置服务器
+## 2.5. 安装openvpn并配置服务器
 ```bash
 # 安装
 yum install epel-release -y
@@ -129,7 +127,7 @@ vim /etc/openvpn/server.conf
 local 192.168.1.1                             # 监听网卡地址
 port 1290                                     # 端口
 proto tcp                                     # 协议，可以是tcp或者udp，但是需要服务器与客户端保持一致
-dev tun
+dev tun                                       # VPN模式，tun为路由模式，tap为隧道模式
 ca /etc/openvpn/server_keys/ca.crt            # 根据情况修改
 cert /etc/openvpn/server_keys/vpnserver.crt   # 根据服务端证书修改     
 key /etc/openvpn/server_keys/vpnserver.key    # 根据服务端密钥修改 
@@ -152,7 +150,7 @@ max-clients 50                                # 最大客户端数量
 user openvpn                                  # 运行软件的的用户
 group openvpn                                 # 运行软件的的用户组
 ```
-### 2.2.1. 安装以及配置防火墙
+## 2.6. 安装以及配置防火墙
 ```
 # 安装iptables防火墙
 yum install iptables-services –y 
@@ -163,12 +161,16 @@ systemctl stop firewalld.service
 systemctl disable firewalld.service
 # 添加NAT转换，使得客户端连接上VPN之后可以通过地址转换访问VPN服务器同网段内网主机
 iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE
+service iptables save
 ```
-### 2.2.2. 开启内核转发
+## 2.7. 开启内核转发
 编辑 `/etc/sysctl.conf`文件,将`net.ipv4.ip_forward = 0`修改为`net.ipv4.ip_forward = 1`，然后执行`sysctl -p`
-### 2.2.3. 启动openvpn
-`systemctl start openvpn@server`
-### 2.2.4. 固定客户端地址
+## 2.8. 启动openvpn并设置自启动
+```bash
+systemctl start openvpn@server
+systemctl enable openvpn@server
+```
+## 2.9. 固定客户端地址（可选）
 客户端的的IP地扯变动和openvpn的版本变动会导致分配的IP地址变动，可能会导致客户端之间无法正常通讯。`mkdir -p /etc/openvpn/ip`，`vim /etc/openvpn/ip/testclient`，名称对应客户端名称，内容形如`ifconfig-push 10.8.0.17 10.8.0.18`，ifconfig-push后面跟着的是两个连续的成组IP地址
 ```bash
 [  1,  2] [  5,  6] [  9, 10] [ 13, 14] [ 17, 18]
@@ -190,10 +192,10 @@ iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE
 下载[客户端](https://openvpn.net/community-downloads/)并安装，将证书放到C:\Program Files (x86)\OpenVPN\config\目录下，再在该目录下新建一个open.ovpn，内容如下
 ```bash
 client
-dev tun                                            //openvpn运行的模式，和Server端保持一致
-proto tcp                                          //协议，和Server端保持一致
-nobind
-remote 1.1.1.1 1290                                //这里填写公网地址和对应端口
+dev tun                                            # openvpn运行的模式，和Server端保持一致
+proto tcp                                          # 协议，和Server端保持一致
+nobind                                             # 不监听
+remote 1.1.1.1 1290                                # 这里填写公网地址和对应端口
 ns-cert-type server
 tls-auth ta.key 1
 ca ca.crt
@@ -202,18 +204,18 @@ key hui_client.key
 keepalive 10 120
 persist-key
 persist-tun
-comp-lzo
-verb 3
-status hui-status.log
-log-append hui.log
-route-nopull        //局部代理
-route 10.8.0.0 255.255.255.0 vpn_gateway
+comp-lzo                                           # 启用数据压缩
+verb 3                                             # 日志冗余级别
+status hui-status.log                              # 状态日志
+log-append hui.log                                 # 运行日志
+route-nopull                                       # 局部代理
+route 10.8.0.0 255.255.255.0 vpn_gateway           # 路由
 ```
 保存，启动openvpn客户端即可
 ## 3.2. Linux
 安装openvpn后，复制证书，创建配置文件open.ovpn，直接openvpn open.ovpn即可
-### 3.2.1. 设置自启动
-`vim /etc/crontab` 添加一行`*/1 * * * * root /etc/openvpn/crond.sh`，代表每分钟执行一次该脚本，脚本内容如下
+### 3.2.1. 设置自启动（进程终结自动连接VPN）
+vim /etc/crontab 添加一行*/1 * * * * root /etc/openvpn/crond.sh，代表每分钟执行一次该脚本，脚本内容如下：
 ```bash
 #!/bin/bash
 # if openvpn not running , then start it.
@@ -229,4 +231,4 @@ fi
 ```
 # 4. 后期维护
 * openvpn目录下的ipp.txt文件夹存储了客户端名称和相应的地址
-* openvpn目录下的easyrsa3_server/pki/index.txt存储了签发的证书，其中包括客户端名称
+* openvpn目录下的easyrsa_server/pki/index.txt存储了签发的证书，其中包括客户端名称
