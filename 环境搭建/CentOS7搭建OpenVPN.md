@@ -202,11 +202,11 @@ dev tun                                            # openvpn运行的模式，�
 proto tcp                                          # 协议，和Server端保持一致
 nobind                                             # 不监听
 remote 1.1.1.1 1290                                # 这里填写公网地址和对应端口
-ns-cert-type server
-tls-auth ta.key 1
-ca ca.crt
-cert testclient.crt
-key testclient.key
+ns-cert-type server                                # 验证证书，安全措施
+tls-auth ta.key 1                                  # tls认证，安全措施
+ca ca.crt                                          # CA证书
+cert testclient.crt                                # 证书
+key testclient.key                                 # key
 keepalive 10 120
 persist-key
 persist-tun
